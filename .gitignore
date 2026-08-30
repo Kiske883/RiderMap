@@ -1,0 +1,4 @@
+# If you prefer not to commit your configured browser key, uncomment:
+config.js
+.DS_Store
+Thumbs.db

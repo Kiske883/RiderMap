@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17191d">
+  <meta name="description" content="Planificador estático de rutas en moto por los Pirineos.">
+  <title>Transpirenaica Route Builder</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div>
+      <p class="eyebrow">EXPEDICIÓN · PIRINEOS</p>
+      <h1>Transpirenaica Route Builder</h1>
+      <p class="tagline">Planifica carreteras. No optimizamos kilómetros. Optimizamos recuerdos.</p>
+    </div>
+    <label class="trip-name-field">
+      <span>Nombre del viaje</span>
+      <input id="trip-name" type="text" maxlength="80" value="Transpirenaica 2026">
+    </label>
+  </header>
+
+  <main>
+    <nav id="day-tabs" class="day-tabs" aria-label="Días de la ruta"></nav>
+
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+    <section class="workspace" aria-label="Constructor de ruta">
+      <div class="editor-panel panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ITINERARIO</p>
+            <h2 id="active-day-heading">Día 1</h2>
+          </div>
+          <span id="save-status" class="save-status">Guardado local</span>
+        </div>
+
+        <label class="field">
+          <span>Nombre opcional del día</span>
+          <input id="day-name" type="text" maxlength="100" placeholder="Hondarribia → Larrau">
+        </label>
+
+        <label class="field">
+          <span>Puntos de ruta <small>(uno por línea, en orden exacto)</small></span>
+          <textarea id="route-input" rows="10" spellcheck="false" placeholder="Hondarribia&#10;Jaizkibel&#10;Etxalar&#10;Col de Lizarrieta&#10;Sare&#10;Puerto de Otxondo&#10;Col d'Izpegi&#10;...&#10;Larrau"></textarea>
+        </label>
+
+        <div class="button-row">
+          <button id="calculate-route" class="button button-primary" type="button">CALCULAR RUTA</button>
+          <button id="load-example" class="button button-secondary" type="button">CARGAR EJEMPLO DÍA 1</button>
+        </div>
+
+        <div class="waypoint-header">
+          <h3>Puntos editables</h3>
+          <button id="add-waypoint" class="button button-small" type="button">+ Añadir punto</button>
+        </div>
+        <div id="waypoint-list" class="waypoint-list"></div>
+
+        <div class="details-grid">
+          <label class="field"><span>Notas</span><textarea id="notes" rows="3" placeholder="Carreteras, horarios, recordatorios..."></textarea></label>
+          <label class="field"><span>Paradas de gasolina previstas</span><input id="fuel-stops" type="text" placeholder="Elizondo, Saint-Jean-Pied-de-Port..."></label>
+          <label class="field"><span>Alojamiento</span><input id="accommodation" type="text" placeholder="Nombre, localidad o referencia"></label>
+        </div>
+
+        <div class="button-row management-actions">
+          <button id="save-day" class="button button-secondary" type="button">GUARDAR DÍA</button>
+          <button id="clear-day" class="button button-danger" type="button">LIMPIAR DÍA</button>
+        </div>
+      </div>
+
+      <div class="map-panel panel">
+        <div id="map" aria-label="Mapa de la ruta"><div class="map-placeholder"><span>MAPA</span><p>Cargando MapLibre y OpenStreetMap...</p></div></div>
+        <div id="map-coordinate-help" class="map-coordinate-help" hidden><span id="map-action-message">Haz clic en el mapa para elegir una ubicación.</span> <button id="cancel-map-selection" type="button">Cancelar</button></div>
+        <div id="loading" class="loading-overlay" hidden><span class="spinner"></span><strong id="loading-text">Calculando ruta...</strong></div>
+        <div class="map-actions">
+          <button id="copy-pretty" class="button button-secondary" type="button">COPIAR RUTA</button>
+          <button id="copy-technical" class="button button-secondary" type="button">COPIAR RUTA TÉCNICA</button>
+          <button id="copy-plain" class="button button-secondary" type="button">COPIAR LISTA</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="route-results" class="results" hidden>
+      <div class="stats-grid">
+        <article><span>Distancia</span><strong id="stat-distance">—</strong></article>
+        <article><span>Conducción estimada</span><strong id="stat-duration">—</strong></article>
+        <article><span>Waypoints</span><strong id="stat-points">—</strong></article>
+        <article><span>Puntos de paso</span><strong id="stat-waypoints">—</strong></article>
+        <article><span>Origen</span><strong id="stat-origin">—</strong></article>
+        <article><span>Destino</span><strong id="stat-destination">—</strong></article>
+      </div>
+      <div class="panel segment-panel">
+        <div class="section-heading"><div><p class="eyebrow">TRAMO A TRAMO</p><h2>Detalle de la ruta</h2></div></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>#</th><th>Punto</th><th>Siguiente punto</th><th>Distancia</th><th>Duración</th></tr></thead>
+            <tbody id="segment-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="trip-summary panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">RESUMEN TRANSPIRINAICA</p><h2 id="summary-name">Transpirenaica 2026</h2></div>
+        <div class="button-row">
+          <button id="export-trip" class="button button-secondary" type="button">EXPORTAR VIAJE</button>
+          <button id="import-trip" class="button button-secondary" type="button">IMPORTAR VIAJE</button>
+          <input id="import-file" type="file" accept="application/json,.json" hidden>
+        </div>
+      </div>
+      <div id="summary-stats" class="summary-stats"></div>
+    </section>
+  </main>
+
+  <footer>No optimizamos kilómetros. Optimizamos recuerdos. <span>·</span> Tus datos se guardan únicamente en este navegador.</footer>
+
+  <script src="./config.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
