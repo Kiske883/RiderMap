@@ -5,120 +5,107 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#17191d">
   <meta name="description" content="Planificador estático de rutas en moto por los Pirineos.">
-  <title>Transpirenaica Route Builder</title>
+  <title>RiderMap · Transpirenaica Route Builder</title>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css">
   <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
-  <header class="site-header">
-    <div>
-      <p class="eyebrow">EXPEDICIÓN · PIRINEOS</p>
-      <h1>Transpirenaica Route Builder</h1>
-      <p class="tagline">Planifica carreteras. No optimizamos kilómetros. Optimizamos recuerdos.</p>
-    </div>
-    <label class="trip-name-field">
-      <span>Nombre del viaje</span>
-      <input id="trip-name" type="text" maxlength="80" value="Transpirenaica 2026">
-    </label>
+  <header class="app-header">
+    <div class="brand"><strong>RiderMap</strong><span>No optimizamos kilómetros. Optimizamos recuerdos.</span></div>
+    <label class="compact-trip-name"><span>Viaje</span><input id="trip-name" type="text" maxlength="80" value="Transpirenaica 2026"></label>
+    <div id="header-day-stats" class="header-day-stats">Ruta sin calcular</div>
   </header>
 
-  <main>
+  <div class="navigation-shell">
     <nav id="day-tabs" class="day-tabs" aria-label="Días de la ruta"></nav>
+    <nav id="primary-tabs" class="primary-tabs" aria-label="Secciones principales">
+      <button type="button" data-tab="map" class="active" aria-selected="true">MAPA</button>
+      <button type="button" data-tab="roads" aria-selected="false">CARRETERAS</button>
+      <button type="button" data-tab="route" aria-selected="false">RUTA</button>
+      <button type="button" data-tab="summary" aria-selected="false">RESUMEN</button>
+      <button type="button" data-tab="ride" class="ride-tab-button" aria-selected="false">EN RUTA</button>
+    </nav>
+  </div>
 
+  <main class="app-main">
     <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    <div id="route-dirty" class="route-dirty" role="status" hidden>Ruta modificada — pulsa <strong>CALCULAR RUTA</strong> para actualizar.</div>
 
-    <section class="workspace" aria-label="Constructor de ruta">
-      <div class="editor-panel panel">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">ITINERARIO</p>
-            <h2 id="active-day-heading">Día 1</h2>
-          </div>
-          <span id="save-status" class="save-status">Guardado local</span>
-        </div>
-
-        <label class="field">
-          <span>Nombre opcional del día</span>
-          <input id="day-name" type="text" maxlength="100" placeholder="Hondarribia → Larrau">
-        </label>
-
-        <label class="field">
-          <span>Puntos de ruta <small>(uno por línea, en orden exacto)</small></span>
-          <textarea id="route-input" rows="10" spellcheck="false" placeholder="Hondarribia&#10;Jaizkibel&#10;Etxalar&#10;Col de Lizarrieta&#10;Sare&#10;Puerto de Otxondo&#10;Col d'Izpegi&#10;...&#10;Larrau"></textarea>
-        </label>
-
-        <div class="button-row">
-          <button id="calculate-route" class="button button-primary" type="button">CALCULAR RUTA</button>
-          <button id="load-example" class="button button-secondary" type="button">CARGAR EJEMPLO DÍA 1</button>
-        </div>
-
-        <div class="waypoint-header">
-          <h3>Puntos editables</h3>
-          <button id="add-waypoint" class="button button-small" type="button">+ Añadir punto</button>
-        </div>
-        <div id="waypoint-list" class="waypoint-list"></div>
-
-        <div class="details-grid">
-          <label class="field"><span>Notas</span><textarea id="notes" rows="3" placeholder="Carreteras, horarios, recordatorios..."></textarea></label>
-          <label class="field"><span>Paradas de gasolina previstas</span><input id="fuel-stops" type="text" placeholder="Elizondo, Saint-Jean-Pied-de-Port..."></label>
-          <label class="field"><span>Alojamiento</span><input id="accommodation" type="text" placeholder="Nombre, localidad o referencia"></label>
-        </div>
-
-        <div class="button-row management-actions">
-          <button id="save-day" class="button button-secondary" type="button">GUARDAR DÍA</button>
-          <button id="clear-day" class="button button-danger" type="button">LIMPIAR DÍA</button>
-        </div>
-      </div>
-
-      <div class="map-panel panel">
+    <section id="tab-map" class="tab-view map-tab active" data-tab-view="map">
+      <div class="map-panel">
         <div id="map" aria-label="Mapa de la ruta"><div class="map-placeholder"><span>MAPA</span><p>Cargando MapLibre y OpenStreetMap...</p></div></div>
+        <div class="map-interaction-help"><span class="desktop-help">Shift + clic o clic derecho para añadir un punto de paso</span><span class="mobile-help">Mantén pulsado el mapa para añadir un punto de paso</span></div>
         <div id="map-coordinate-help" class="map-coordinate-help" hidden><span id="map-action-message">Haz clic en el mapa para elegir una ubicación.</span> <button id="cancel-map-selection" type="button">Cancelar</button></div>
         <div id="loading" class="loading-overlay" hidden><span class="spinner"></span><strong id="loading-text">Calculando ruta...</strong></div>
-        <div class="map-actions">
-          <button id="copy-pretty" class="button button-secondary" type="button">COPIAR RUTA</button>
-          <button id="copy-technical" class="button button-secondary" type="button">COPIAR RUTA TÉCNICA</button>
-          <button id="copy-plain" class="button button-secondary" type="button">COPIAR LISTA</button>
+        <aside id="ride-panel" class="ride-panel" hidden aria-live="polite">
+          <div class="ride-panel-header"><span>EN RUTA</span><button id="exit-ride-mode" type="button">SALIR</button></div>
+          <div id="ride-status" class="ride-status">Esperando GPS…</div>
+          <section class="ride-next"><span>SIGUIENTE</span><strong id="ride-next-name">—</strong><b id="ride-next-distance">—</b></section>
+          <div class="ride-primary-actions"><button id="ride-start-gps" class="button button-primary" type="button" hidden>INICIAR GPS</button><button id="ride-skip-waypoint" class="button button-secondary" type="button">SALTAR PUNTO</button></div>
+          <div class="ride-after"><span>Después</span><strong id="ride-after-name">—</strong><b id="ride-after-distance">—</b></div>
+          <div class="ride-metrics"><div><span>Ruta restante</span><strong id="ride-remaining-distance">—</strong></div><div><span>Tiempo estimado</span><strong id="ride-remaining-time">—</strong></div><div><span>GPS</span><strong id="ride-accuracy">—</strong></div><div id="ride-speed-item" hidden><span>Velocidad</span><strong id="ride-speed">—</strong></div></div>
+          <div id="ride-off-route" class="ride-off-route" hidden>⚠ FUERA DE RUTA <strong id="ride-off-route-distance"></strong></div>
+          <button id="ride-recenter" class="button button-primary ride-wide" type="button" hidden>VOLVER A MI POSICIÓN</button>
+          <details class="ride-waypoints"><summary>Progreso de waypoints</summary><div id="ride-waypoint-list"></div></details>
+          <div class="ride-actions"><button id="ride-wake-lock" class="button button-secondary" type="button">MANTENER PANTALLA ACTIVA</button><button id="ride-fullscreen" class="button button-secondary" type="button">PANTALLA COMPLETA</button></div>
+          <div id="ride-simulation" class="ride-simulation" hidden><span>SIMULACIÓN</span><button id="simulation-toggle" class="button button-secondary" type="button">INICIAR</button><button id="simulation-reset" class="button button-secondary" type="button">REINICIAR</button><button id="simulation-offroute" class="button button-secondary" type="button">DESVÍO</button><label>Velocidad <select id="simulation-speed"><option value="1">1×</option><option value="5" selected>5×</option><option value="20">20×</option></select></label></div>
+          <pre id="ride-debug" class="ride-debug" hidden></pre>
+        </aside>
+        <div class="map-toolbar">
+          <button id="calculate-route" class="button button-primary" type="button">CALCULAR RUTA</button>
+          <button id="via-placement-mode" class="button button-secondary" type="button" aria-pressed="false">+ PUNTO DE PASO</button>
+          <label class="via-visibility"><input id="show-via-points" type="checkbox" checked> Mostrar VIA</label>
+          <button id="fit-route" class="button button-secondary" type="button">AJUSTAR RUTA</button>
+          <button id="map-focus-toggle" class="button button-secondary" type="button">⛶ MAPA COMPLETO</button>
+          <div class="map-quick-stats"><strong id="map-stat-distance">— km</strong><span id="map-stat-duration">—</span><span id="map-stat-points">0 waypoints · 0 VIA</span></div>
         </div>
       </div>
     </section>
 
-    <section id="route-results" class="results" hidden>
-      <div class="stats-grid">
-        <article><span>Distancia</span><strong id="stat-distance">—</strong></article>
-        <article><span>Conducción estimada</span><strong id="stat-duration">—</strong></article>
-        <article><span>Waypoints</span><strong id="stat-points">—</strong></article>
-        <article><span>Puntos de paso</span><strong id="stat-waypoints">—</strong></article>
-        <article><span>Origen</span><strong id="stat-origin">—</strong></article>
-        <article><span>Destino</span><strong id="stat-destination">—</strong></article>
-      </div>
-      <div class="panel segment-panel">
-        <div class="section-heading"><div><p class="eyebrow">TRAMO A TRAMO</p><h2>Detalle de la ruta</h2></div></div>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>#</th><th>Punto</th><th>Siguiente punto</th><th>Distancia</th><th>Duración</th></tr></thead>
-            <tbody id="segment-body"></tbody>
-          </table>
+    <section id="tab-roads" class="tab-view roads-tab" data-tab-view="roads" hidden>
+      <div id="route-results" class="results" hidden>
+        <div class="stats-grid">
+          <article><span>Distancia</span><strong id="stat-distance">—</strong></article><article><span>Conducción</span><strong id="stat-duration">—</strong></article><article><span>Waypoints</span><strong id="stat-points">—</strong></article><article><span>Puntos de paso</span><strong id="stat-waypoints">—</strong></article><article><span>Origen</span><strong id="stat-origin">—</strong></article><article><span>Destino</span><strong id="stat-destination">—</strong></article>
         </div>
+        <div class="roads-toolbar"><div><p class="eyebrow">ANÁLISIS COMPLETO</p><h2>Carreteras del día</h2></div><label>Buscar carretera <input id="road-filter" type="search" placeholder="D20, GI-3440..."></label><button id="toggle-routing-debug" class="button button-secondary button-small" type="button" aria-expanded="false">MOSTRAR DATOS DE DEPURACIÓN</button></div>
+        <div class="roads-table-wrap">
+          <table class="roads-table"><thead><tr><th>#</th><th>Desde</th><th>Hasta</th><th>Carreteras</th><th>Distancia</th><th>Duración</th><th>Tipo</th><th>Observaciones</th></tr></thead><tbody id="segment-body"></tbody></table>
+        </div>
+        <div id="route-detail-cards" class="route-detail-cards"></div>
+        <pre id="routing-debug-data" class="routing-debug-data" hidden></pre>
       </div>
+      <div id="roads-empty" class="empty-view"><strong>Sin análisis de carreteras</strong><span>Calcula una ruta en MAPA para ver cada tramo e instrucción.</span></div>
     </section>
 
-    <section class="trip-summary panel">
-      <div class="section-heading">
-        <div><p class="eyebrow">RESUMEN TRANSPIRINAICA</p><h2 id="summary-name">Transpirenaica 2026</h2></div>
-        <div class="button-row">
-          <button id="export-trip" class="button button-secondary" type="button">EXPORTAR VIAJE</button>
-          <button id="import-trip" class="button button-secondary" type="button">IMPORTAR VIAJE</button>
-          <input id="import-file" type="file" accept="application/json,.json" hidden>
-        </div>
+    <section id="tab-route" class="tab-view route-tab" data-tab-view="route" hidden>
+      <div class="route-editor-grid">
+        <section class="route-raw-panel">
+          <div class="section-heading"><div><p class="eyebrow">ITINERARIO</p><h2 id="active-day-heading">Día 1</h2></div><span id="save-status" class="save-status">Guardado local</span></div>
+          <label class="field"><span>Nombre opcional del día</span><input id="day-name" type="text" maxlength="100" placeholder="Hondarribia → Larrau"></label>
+          <label class="field"><span>Puntos de ruta <small>(uno por línea, en orden exacto)</small></span><textarea id="route-input" rows="18" spellcheck="false" placeholder="Hondarribia&#10;Jaizkibel&#10;Etxalar&#10;Col de Lizarrieta&#10;Larrau"></textarea></label>
+          <div class="button-row"><button id="calculate-route-editor" class="button button-primary" type="button">CALCULAR RUTA</button><button id="load-example" class="button button-secondary" type="button">CARGAR EJEMPLO DÍA 1</button></div>
+          <div class="details-grid"><label class="field"><span>Notas</span><textarea id="notes" rows="4" placeholder="Carreteras, horarios, recordatorios..."></textarea></label><label class="field"><span>Paradas de gasolina previstas</span><input id="fuel-stops" type="text"></label><label class="field"><span>Alojamiento</span><input id="accommodation" type="text"></label></div>
+          <div class="button-row management-actions"><button id="save-day" class="button button-secondary" type="button">GUARDAR</button><button id="clear-day" class="button button-danger" type="button">BORRAR DÍA</button></div>
+        </section>
+        <section class="structured-route-panel">
+          <div class="waypoint-header"><div><p class="eyebrow">ORDEN EXACTO</p><h2>Puntos editables</h2></div><div class="button-row"><button id="clear-manual-locations" class="button button-small button-secondary" type="button">BORRAR UBICACIONES CORREGIDAS</button><button id="add-waypoint" class="button button-small" type="button">+ AÑADIR PUNTO</button></div></div>
+          <div id="waypoint-list" class="waypoint-list"></div>
+        </section>
       </div>
-      <div id="summary-stats" class="summary-stats"></div>
+      <div class="route-utility-bar"><button id="copy-pretty" class="button button-secondary" type="button">COPIAR RUTA LIMPIA</button><button id="copy-technical" class="button button-secondary" type="button">COPIAR RUTA TÉCNICA</button><button id="copy-plain" class="button button-secondary" type="button">COPIAR LISTA</button><button id="export-trip" class="button button-secondary" type="button">EXPORTAR JSON</button><button id="import-trip" class="button button-secondary" type="button">IMPORTAR JSON</button><input id="import-file" type="file" accept="application/json,.json" hidden></div>
+    </section>
+
+    <section id="tab-summary" class="tab-view summary-tab" data-tab-view="summary" hidden>
+      <section class="selected-day-summary"><p class="eyebrow">DÍA SELECCIONADO</p><h2 id="selected-day-summary-title">Día 1</h2><div id="selected-day-summary-stats" class="summary-stats"></div><div id="selected-day-notes" class="summary-notes"></div></section>
+      <section class="trip-summary"><div class="section-heading"><div><p class="eyebrow">RESUMEN TRANSPIRINAICA</p><h2 id="summary-name">Transpirenaica 2026</h2></div></div><div id="trip-days-summary" class="trip-days-summary"></div><div id="summary-stats" class="summary-stats"></div></section>
     </section>
   </main>
 
-  <footer>No optimizamos kilómetros. Optimizamos recuerdos. <span>·</span> Tus datos se guardan únicamente en este navegador.</footer>
+  <dialog id="via-dialog" class="via-dialog"><form id="via-form" method="dialog"><div class="section-heading"><div><p class="eyebrow">FORZAR CARRETERA</p><h2>Añadir punto de paso</h2></div><button class="dialog-close dialog-cancel" type="button" aria-label="Cerrar">×</button></div><p>Coordenadas: <strong id="via-dialog-coordinates"></strong></p><label class="field"><span>Insertar entre</span><select id="via-segment-select" required></select></label><div id="via-pair-preview" class="via-pair-preview"></div><label class="field"><span>Nombre opcional</span><input id="via-name" type="text" maxlength="100" placeholder="D20"></label><div class="button-row dialog-actions"><button class="button button-secondary dialog-cancel" type="button">CANCELAR</button><button id="confirm-add-via" class="button button-primary" type="submit">AÑADIR</button></div></form></dialog>
 
-  <script src="./config.js"></script>
-  <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
-  <script type="module" src="./js/app.js"></script>
+  <dialog id="ride-recovery-dialog" class="ride-recovery-dialog"><div><p class="eyebrow">SESIÓN GUARDADA</p><h2>Ruta en curso encontrada</h2><strong id="recovery-route-name"></strong><p>Siguiente: <b id="recovery-next-waypoint">—</b></p><p><b id="recovery-remaining">—</b> restantes</p><small id="recovery-updated-at"></small><div class="button-row dialog-actions"><button id="discard-ride-session" class="button button-danger" type="button">DESCARTAR</button><button id="continue-ride-session" class="button button-primary" type="button">CONTINUAR RUTA</button></div></div></dialog>
+
+  <footer>RiderMap · Tus datos se guardan únicamente en este navegador.</footer>
+  <script src="./config.js"></script><script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script><script type="module" src="./js/app.js"></script>
 </body>
 </html>

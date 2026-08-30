@@ -68,7 +68,7 @@ export function combineRoutes(routes, points, provider = "unknown") {
 function sameCoordinate(a, b) { return Boolean(a && b && Math.abs(a[0] - b[0]) < 1e-7 && Math.abs(a[1] - b[1]) < 1e-7); }
 
 async function calculateGraphHopperChunk(points) {
-  const params = new URLSearchParams({ key: window.APP_CONFIG.GRAPHHOPPER_API_KEY, profile: "car", locale: "es", points_encoded: "false", instructions: "false", calc_points: "true" });
+  const params = new URLSearchParams({ key: window.APP_CONFIG.GRAPHHOPPER_API_KEY, profile: "car", locale: "es", points_encoded: "false", instructions: "true", calc_points: "true" });
   points.forEach((point) => params.append("point", `${point.lat},${point.lon}`));
   let response;
   try { response = await fetch(`https://graphhopper.com/api/1/route?${params}`, { headers: { Accept: "application/json" } }); }
@@ -113,11 +113,40 @@ function deriveLegs(path, points) {
   cuts.push(geometry.length - 1);
   const rawDistances = cuts.slice(0, -1).map((start, i) => lineDistance(geometry.slice(start, cuts[i + 1] + 1)));
   const rawTotal = rawDistances.reduce((sum, distance) => sum + distance, 0) || 1;
-  return rawDistances.map((rawDistance, index) => ({
-    from: points[index].name, to: points[index + 1].name,
-    distanceMeters: path.distance * rawDistance / rawTotal,
-    durationSeconds: (path.time / 1000) * rawDistance / rawTotal
+  return rawDistances.map((rawDistance, index) => {
+    const instructions = normalizeInstructions(path.instructions, cuts[index], cuts[index + 1], index === rawDistances.length - 1);
+    const instructionDistance = instructions.reduce((sum, instruction) => sum + instruction.distanceMeters, 0);
+    const instructionDuration = instructions.reduce((sum, instruction) => sum + instruction.durationSeconds, 0);
+    return {
+      from: points[index].name, to: points[index + 1].name,
+      origin: snapshotPoint(points[index]), destination: snapshotPoint(points[index + 1]),
+      distanceMeters: instructionDistance || path.distance * rawDistance / rawTotal,
+      durationSeconds: instructionDuration || (path.time / 1000) * rawDistance / rawTotal,
+      geometry: { type: "LineString", coordinates: geometry.slice(cuts[index], cuts[index + 1] + 1) }, instructions
+    };
+  });
+}
+
+function snapshotPoint(point) { return { id: String(point.id || ""), name: String(point.name || ""), type: String(point.type || ""), lat: Number(point.lat), lon: Number(point.lon), locationSource: String(point.locationSource || "") }; }
+
+function normalizeInstructions(instructions = [], startIndex, endIndex, includeEnd) {
+  return instructions.filter((instruction) => {
+    const position = Number(instruction.interval?.[0]); const arrival = Number(instruction.sign) === 4 || Number(instruction.sign) === 5;
+    return Number.isFinite(position) && position >= startIndex && (position < endIndex || position === endIndex && (arrival || includeEnd));
+  }).map((instruction) => ({
+    text: String(instruction.text || ""),
+    streetName: String(instruction.street_name || ""),
+    distanceMeters: Number(instruction.distance) || 0,
+    durationSeconds: (Number(instruction.time) || 0) / 1000,
+    sign: Number(instruction.sign),
+    maneuver: maneuverName(instruction.sign),
+    interval: Array.isArray(instruction.interval) ? instruction.interval.map(Number) : []
   }));
+}
+
+function maneuverName(sign) {
+  const names = { "-8": "cambio de sentido", "-7": "mantener izquierda", "-3": "giro fuerte a la izquierda", "-2": "giro a la izquierda", "-1": "giro leve a la izquierda", "0": "continuar", "1": "giro leve a la derecha", "2": "giro a la derecha", "3": "giro fuerte a la derecha", "4": "destino", "5": "punto intermedio", "6": "rotonda", "7": "mantener derecha", "8": "cambio de sentido" };
+  return names[String(sign)] || "maniobra";
 }
 
 function nearestForwardIndex(coordinates, point, start) {

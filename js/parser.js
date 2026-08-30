@@ -1,11 +1,16 @@
 export const WAYPOINT_TYPES = [
-  { value: "pass", label: "📍 Paso" },
+  { value: "normal", label: "• Punto" },
+  { value: "pass", label: "⛰ Puerto" },
   { value: "stop", label: "☕ Parada" },
   { value: "fuel", label: "⛽ Gasolina" },
   { value: "food", label: "🍴 Comida" },
-  { value: "lodging", label: "🏕️ Alojamiento" },
-  { value: "via", label: "↳ VIA" }
+  { value: "hotel", label: "🏨 Fin de etapa" },
+  { value: "interest", label: "★ Punto de interés" },
+  { value: "technical", label: "🔧 Punto técnico" }
 ];
+
+export function isTechnicalWaypoint(point) { return point?.type === "technical" || point?.type === "via"; }
+export function isRideTarget(point) { return !isTechnicalWaypoint(point); }
 
 export function parseLines(text) {
   return String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -21,7 +26,7 @@ export function reconcileWaypoints(text, existing = []) {
     const samePosition = existing[index];
     if (samePosition?.name === name) return { ...samePosition };
     const unusedMatch = existing.find((point, oldIndex) => point.name === name && oldIndex >= index);
-    return unusedMatch ? { ...unusedMatch, name } : { id: createId(), name, type: "pass", lat: null, lon: null, locationSource: null, resolvedName: "" };
+    return unusedMatch ? { ...unusedMatch, name } : { id: createId(), name, type: "normal", lat: null, lon: null, locationSource: null, resolvedName: "" };
   });
 }
 
@@ -32,12 +37,12 @@ export function validateRoute(waypoints) {
   return clean;
 }
 
-export function createWaypoint(name = "", type = "pass") {
+export function createWaypoint(name = "", type = "normal") {
   return { id: createId(), name, type, lat: null, lon: null, locationSource: null, resolvedName: "" };
 }
 
 export function createViaPoint(name, lat, lon) {
-  return { id: createId(), name: name || "Punto de paso", type: "via", lat: Number(lat), lon: Number(lon), locationSource: "manual", manualCoordinates: true, resolvedName: "Punto de paso elegido en el mapa" };
+  return { id: createId(), name: name || "Punto de paso", type: "technical", lat: Number(lat), lon: Number(lon), locationSource: "manual", manualCoordinates: true, resolvedName: "Punto de paso elegido en el mapa" };
 }
 
 function createId() {

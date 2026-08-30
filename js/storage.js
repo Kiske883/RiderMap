@@ -10,6 +10,7 @@ export function createEmptyDay(index) {
     fuelStops: "",
     accommodation: "",
     route: null,
+    routeDirty: false,
     updatedAt: null
   };
 }
@@ -74,24 +75,34 @@ function normalizeDay(day, index) {
     if (!point || typeof point !== "object" || !safeString(point.name).trim()) return null;
     const lat = validCoordinate(point.lat, -90, 90) ? Number(point.lat) : null;
     const lon = validCoordinate(point.lon, -180, 180) ? Number(point.lon) : null;
-    const type = ["pass", "stop", "fuel", "food", "lodging", "via"].includes(point.type) ? point.type : "pass";
-    return { id: safeString(point.id) || `import-${index}-${pointIndex}`, name: safeString(point.name).trim().slice(0, 300), type, lat, lon, locationSource: ["manual", "geocoded", "cache"].includes(point.locationSource) ? point.locationSource : null, manualCoordinates: type === "via" || point.manualCoordinates === true, resolvedName: safeString(point.resolvedName).slice(0, 500) };
+    const legacyType = point.type === "via" ? "technical" : point.type === "lodging" ? "hotel" : point.type;
+    const type = ["normal", "pass", "stop", "fuel", "food", "hotel", "interest", "technical"].includes(legacyType) ? legacyType : "normal";
+    return { id: safeString(point.id) || `import-${index}-${pointIndex}`, name: safeString(point.name).trim().slice(0, 300), type, lat, lon, locationSource: ["manual", "geocoded", "cache"].includes(point.locationSource) ? point.locationSource : null, manualCoordinates: type === "technical" || point.manualCoordinates === true, resolvedName: safeString(point.resolvedName).slice(0, 500) };
   }).filter(Boolean) : [];
+  const routeDirty = day.routeDirty === true;
   return {
     ...base,
     name: safeString(day.name).slice(0, 100), waypoints,
     notes: safeString(day.notes).slice(0, 5000), fuelStops: safeString(day.fuelStops).slice(0, 1000), accommodation: safeString(day.accommodation).slice(0, 1000),
-    route: normalizeRoute(day.route, waypoints.length), updatedAt: safeString(day.updatedAt) || null
+    route: normalizeRoute(day.route, waypoints.length, routeDirty), routeDirty, updatedAt: safeString(day.updatedAt) || null
   };
 }
 
-function normalizeRoute(route, pointCount) {
+function normalizeRoute(route, pointCount, allowStale = false) {
   if (!route || typeof route !== "object" || !Number.isFinite(route.distanceMeters) || !Number.isFinite(route.durationSeconds) || !Array.isArray(route.legs) || route.geometry?.type !== "LineString" || !Array.isArray(route.geometry.coordinates)) return null;
-  if (route.pointCount !== pointCount) return null;
+  if (route.pointCount !== pointCount && !allowStale) return null;
   const coordinates = route.geometry.coordinates.filter((pair) => Array.isArray(pair) && validCoordinate(pair[0], -180, 180) && validCoordinate(pair[1], -90, 90)).map((pair) => [Number(pair[0]), Number(pair[1])]);
   if (coordinates.length < 2) return null;
-  return { provider: safeString(route.provider), distanceMeters: route.distanceMeters, durationSeconds: route.durationSeconds, pointCount, calculatedAt: safeString(route.calculatedAt), geometry: { type: "LineString", coordinates }, legs: route.legs.map((s) => ({ from: safeString(s.from), to: safeString(s.to), distanceMeters: Number(s.distanceMeters) || 0, durationSeconds: Number(s.durationSeconds) || 0 })) };
+  return { provider: safeString(route.provider), distanceMeters: route.distanceMeters, durationSeconds: route.durationSeconds, pointCount, calculatedAt: safeString(route.calculatedAt), geometry: { type: "LineString", coordinates }, legs: route.legs.map(normalizeLeg) };
 }
+
+function normalizeLeg(leg) {
+  const geometry = Array.isArray(leg.geometry?.coordinates) ? leg.geometry.coordinates.filter((pair) => Array.isArray(pair) && validCoordinate(pair[0], -180, 180) && validCoordinate(pair[1], -90, 90)).map((pair) => [Number(pair[0]), Number(pair[1])]) : [];
+  const instructions = Array.isArray(leg.instructions) ? leg.instructions.slice(0, 2000).map((instruction) => ({ text: safeString(instruction.text).slice(0, 500), streetName: safeString(instruction.streetName).slice(0, 300), distanceMeters: Number(instruction.distanceMeters) || 0, durationSeconds: Number(instruction.durationSeconds) || 0, sign: Number(instruction.sign) || 0, maneuver: safeString(instruction.maneuver).slice(0, 100), interval: Array.isArray(instruction.interval) ? instruction.interval.slice(0, 2).map(Number) : [] })) : [];
+  return { from: safeString(leg.from), to: safeString(leg.to), origin: normalizePointSnapshot(leg.origin, leg.from), destination: normalizePointSnapshot(leg.destination, leg.to), distanceMeters: Number(leg.distanceMeters) || 0, durationSeconds: Number(leg.durationSeconds) || 0, geometry: { type: "LineString", coordinates: geometry }, instructions };
+}
+
+function normalizePointSnapshot(point, fallbackName) { if (!point || typeof point !== "object") return null; return { id: safeString(point.id), name: safeString(point.name) || safeString(fallbackName), type: safeString(point.type), lat: validCoordinate(point.lat, -90, 90) ? Number(point.lat) : null, lon: validCoordinate(point.lon, -180, 180) ? Number(point.lon) : null, locationSource: ["manual", "geocoded", "cache"].includes(point.locationSource) ? point.locationSource : "" }; }
 
 function safeString(value) { return typeof value === "string" ? value : ""; }
 function validCoordinate(value, minimum, maximum) { return value !== null && value !== "" && Number.isFinite(Number(value)) && Number(value) >= minimum && Number(value) <= maximum; }
